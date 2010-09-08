@@ -12,6 +12,7 @@ module Whenever
       @options = options
       
       @options[:file]       ||= 'config/schedule.rb'
+      @options[:cut]        ||= 0
       @options[:identifier] ||= default_identifier
       
       unless File.exists?(@options[:file])
@@ -53,7 +54,7 @@ module Whenever
       command << "-u #{@options[:user]}" if @options[:user]
       
       command_results  = %x[#{command.join(' ')} 2> /dev/null]
-      @current_crontab = $?.exitstatus.zero? ? command_results : ''
+      @current_crontab = $?.exitstatus.zero? ? prepare(command_results) : ''
     end
     
     def write_crontab(contents)
@@ -93,6 +94,10 @@ module Whenever
       else # Otherwise, append the new cron entries after any existing ones
         [read_crontab, whenever_cron].join("\n\n")
       end
+    end
+    
+    def prepare(contents)
+      contents.split("\n")[@options[:cut]..-1].join("\n")
     end
     
     def comment_base
