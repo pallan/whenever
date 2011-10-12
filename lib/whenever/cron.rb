@@ -1,19 +1,26 @@
+require 'chronic'
+
 module Whenever
   module Output
     class Cron
+      REGEX = /^.+ .+ .+ .+ .+.?$/
 
       attr_accessor :time, :task
 
-      def initialize(time = nil, task = nil, at = nil, output_redirection = nil)
+      def initialize(time = nil, task = nil, at = nil)
         @time = time
         @task = task
         @at   = at.is_a?(String) ? (Chronic.parse(at) || 0) : (at || 0)
-        @output_redirection = output_redirection
       end
 
-      def self.enumerate(item)
+      def self.enumerate(item, detect_cron = true)
         if item and item.is_a?(String)
-          items = item.split(',')
+          items = 
+            if detect_cron && item =~ REGEX
+              [item]
+            else
+              item.split(',')
+            end
         else
           items = item
           items = [items] unless items and items.respond_to?(:each)
@@ -23,42 +30,48 @@ module Whenever
 
       def self.output(times, job)
         enumerate(times).each do |time|
-          enumerate(job.at).each do |at|
-            yield new(time, job.output, at, job.output_redirection).output
+          enumerate(job.at, false).each do |at|
+            yield new(time, job.output, at).output
           end
         end
       end
       
       def output
-        [time_in_cron_syntax, task, output_redirection].compact.join(' ').strip
+        [time_in_cron_syntax, task].compact.join(' ').strip
       end
 
       def time_in_cron_syntax
         case @time
+          when REGEX  then @time # raw cron sytax given
           when Symbol then parse_symbol
           when String then parse_as_string
           else parse_time
         end
-      end
-      
-      def output_redirection
-        Whenever::Output::Cron::OutputRedirection.new(@output_redirection).to_s unless @output_redirection == :not_set
       end
 
     protected
 
       def parse_symbol
         shortcut = case @time
-          when :reboot          then '@reboot'
-          when :year, :yearly   then '@annually'
-          when :day, :daily     then '@daily'
-          when :midnight        then '@midnight'
-          when :month, :monthly then '@monthly'
-          when :week, :weekly   then '@weekly'
-          when :hour, :hourly   then '@hourly'
+          when :reboot   then '@reboot'
+          when :year     then 12.months
+          when :yearly, 
+               :annually then '@annually'
+          when :day      then 1.day
+          when :daily    then '@daily'
+          when :midnight then '@midnight'
+          when :month    then 1.month
+          when :monthly  then '@monthly'
+          when :week     then 1.week
+          when :weekly   then '@weekly'
+          when :hour     then 1.hour
+          when :hourly   then '@hourly'
         end
         
-        if shortcut
+        if shortcut.is_a?(Numeric)
+          @time = shortcut
+          parse_time
+        elsif shortcut
           if @at.is_a?(Time) || (@at.is_a?(Numeric) && @at > 0)
             raise ArgumentError, "You cannot specify an ':at' when using the shortcuts for times."
           else
@@ -131,7 +144,6 @@ module Whenever
 
         output[0, max_occurances].join(',')
       end
-
     end
   end
 end

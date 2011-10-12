@@ -1,3 +1,3 @@
 module Whenever
-  VERSION = '0.6.0' 
-end unless defined?(Whenever::VERSION)
+  VERSION = '0.7.0' 
+end

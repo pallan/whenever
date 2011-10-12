@@ -3,7 +3,6 @@ require 'tempfile'
 
 module Whenever
   class CommandLine
-    
     def self.execute(options={})
       new(options).run
     end
@@ -30,7 +29,6 @@ module Whenever
         exit(1)
       end
       @options[:cut] = @options[:cut].to_i
-      
     end
     
     def run
@@ -40,6 +38,8 @@ module Whenever
         write_crontab(whenever_cron)
       else
         puts Whenever.cron(@options)
+        puts "## [message] Above is your schedule file converted to cron syntax; your crontab file was not updated."
+        puts "## [message] Run `whenever --help' for more options."
         exit(0)
       end
     end
@@ -51,7 +51,8 @@ module Whenever
     end
   
     def whenever_cron
-      @whenever_cron ||= [comment_open, (Whenever.cron(@options) unless @options[:clear]), comment_close].compact.join("\n") + "\n"
+      return '' if @options[:clear]
+      @whenever_cron ||= [comment_open, Whenever.cron(@options), comment_close].compact.join("\n") + "\n"
     end
     
     def read_crontab
@@ -87,26 +88,34 @@ module Whenever
     
     def updated_crontab   
       # Check for unopened or unclosed identifier blocks
-      if read_crontab =~ Regexp.new("^#{comment_open}$") && (read_crontab =~ Regexp.new("^#{comment_close}$")).nil?
+      if read_crontab =~ Regexp.new("^#{comment_open}\s*$") && (read_crontab =~ Regexp.new("^#{comment_close}\s*$")).nil?
         warn "[fail] Unclosed indentifier; Your crontab file contains '#{comment_open}', but no '#{comment_close}'"
         exit(1)
-      elsif (read_crontab =~ Regexp.new("^#{comment_open}$")).nil? && read_crontab =~ Regexp.new("^#{comment_close}$")
+      elsif (read_crontab =~ Regexp.new("^#{comment_open}\s*$")).nil? && read_crontab =~ Regexp.new("^#{comment_close}\s*$")
         warn "[fail] Unopened indentifier; Your crontab file contains '#{comment_close}', but no '#{comment_open}'"
         exit(1)
       end
       
       # If an existing identier block is found, replace it with the new cron entries
-      if read_crontab =~ Regexp.new("^#{comment_open}$") && read_crontab =~ Regexp.new("^#{comment_close}$")
+      if read_crontab =~ Regexp.new("^#{comment_open}\s*$") && read_crontab =~ Regexp.new("^#{comment_close}\s*$")
         # If the existing crontab file contains backslashes they get lost going through gsub.
         # .gsub('\\', '\\\\\\') preserves them. Go figure.
-        read_crontab.gsub(Regexp.new("^#{comment_open}$.+^#{comment_close}$", Regexp::MULTILINE), whenever_cron.chomp.gsub('\\', '\\\\\\'))
+        read_crontab.gsub(Regexp.new("^#{comment_open}\s*$.+^#{comment_close}\s*$", Regexp::MULTILINE), whenever_cron.chomp.gsub('\\', '\\\\\\'))
       else # Otherwise, append the new cron entries after any existing ones
         [read_crontab, whenever_cron].join("\n\n")
-      end
+      end.gsub(/\n{3,}/, "\n\n") # More than two newlines becomes just two.
     end
     
     def prepare(contents)
-      contents.split("\n")[@options[:cut]..-1].join("\n")
+      # Strip n lines from the top of the file as specified by the :cut option.
+      # Use split with a -1 limit option to ensure the join is able to rebuild
+      # the file with all of the original seperators in-tact.
+      stripped_contents = contents.split($/,-1)[@options[:cut]..-1].join($/)
+
+      # Some cron implementations require all non-comment lines to be newline-
+      # terminated. (issue #95) Strip all newlines and replace with the default 
+      # platform record seperator ($/)
+      stripped_contents.gsub!(/\s+$/, $/)
     end
     
     def comment_base
@@ -120,6 +129,5 @@ module Whenever
     def comment_close
       "# End #{comment_base}"
     end
-    
   end
 end

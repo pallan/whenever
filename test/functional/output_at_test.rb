@@ -6,6 +6,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every "weekday", :at => '5:02am' do
           command "blahblah"
         end
@@ -21,6 +22,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every "weekday", :at => %w(5:02am 3:52pm) do
           command "blahblah"
         end
@@ -37,6 +39,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every "weekday", :at => '5:02am, 3:52pm' do
           command "blahblah"
         end
@@ -53,6 +56,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every "weekday", :at => '5:02am, 3:02pm' do
           command "blahblah"
         end
@@ -68,6 +72,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every "mon,wed,fri", :at => '5:02am, 3:02pm' do
           command "blahblah"
         end
@@ -83,6 +88,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         set :path, '/your/path'
         every "mon,wed,fri", :at => '5:02am, 3:02pm' do
           runner "blahblah"
@@ -99,6 +105,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         set :path, '/your/path'
         every "mon,wed,fri", :at => '5:02am, 3:02pm' do
           rake "blah:blah"
@@ -107,7 +114,7 @@ class OutputAtTest < Test::Unit::TestCase
     end
     
     should "output the rake task using one entry because the times are aligned" do
-      assert_match '2 5,15 * * 1,3,5 cd /your/path && RAILS_ENV=production /usr/bin/env rake blah:blah', @output
+      assert_match '2 5,15 * * 1,3,5 cd /your/path && RAILS_ENV=production bundle exec rake blah:blah --silent', @output
     end
   end
   
@@ -115,6 +122,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every [1.month, 1.day], :at => 'january 5:02am, june 17th at 2:22pm, june 3rd at 3:33am' do
           command "blahblah"
         end
@@ -138,6 +146,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every :reboot do
           command "command_1"
           command "command_2"
@@ -155,8 +164,9 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         set :path, '/your/path'
-        every :day do
+        every :daily do
           rake "blah:blah"
           runner "runner_1"
           command "command_1"
@@ -167,7 +177,7 @@ class OutputAtTest < Test::Unit::TestCase
     end
     
     should "output all of the commands @daily" do
-      assert_match '@daily cd /your/path && RAILS_ENV=production /usr/bin/env rake blah:blah', @output
+      assert_match '@daily cd /your/path && RAILS_ENV=production bundle exec rake blah:blah --silent', @output
       assert_match %(@daily cd /your/path && script/runner -e production 'runner_1'), @output
       assert_match '@daily command_1', @output
       assert_match %(@daily cd /your/path && script/runner -e production 'runner_2'), @output
@@ -179,6 +189,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every 5.minutes, :at => 1 do
           command "blahblah"
         end
@@ -194,6 +205,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every 4.minutes, :at => 2 do
           command "blahblah"
         end
@@ -209,6 +221,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every 3.minutes, :at => 7 do
           command "blahblah"
         end
@@ -224,6 +237,7 @@ class OutputAtTest < Test::Unit::TestCase
     setup do
       @output = Whenever.cron \
       <<-file
+        set :job_template, nil
         every 2.minutes, :at => 27 do
           command "blahblah"
         end
@@ -234,4 +248,21 @@ class OutputAtTest < Test::Unit::TestCase
       assert_match '27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59 * * * * blahblah', @output
     end
   end
+  
+  context "using raw cron syntax" do
+    setup do
+      @output = Whenever.cron \
+      <<-file
+        set :job_template, nil
+        every '0 0 27,31 * *' do
+          command "blahblah"
+        end
+      file
+    end
+    
+    should "output the command using the same cron syntax" do
+      assert_match '0 0 27,31 * * blahblah', @output
+    end
+  end
+  
 end

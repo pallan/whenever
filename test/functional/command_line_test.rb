@@ -120,35 +120,18 @@ NEW_CRON
     end
     
     should "append the similarly named command" do
-      assert_equal @existing + "\n\n" + @new, @command.send(:updated_crontab)
+      assert_equal @existing + "\n" + @new, @command.send(:updated_crontab)
     end
   end
 
-  context "A command line delete" do
+  context "A command line clear" do
     setup do
       File.expects(:exists?).with('config/schedule.rb').returns(true)
       @command = Whenever::CommandLine.new(:clear => true, :identifier => 'My identifier')
       @task = "#{two_hours} /my/command"
     end
 
-    should "add an empty identifier block if there is no existing one" do
-      existing = '# Existing crontab'
-      @command.expects(:read_crontab).at_least_once.returns(existing)
-      
-      new_cron = <<-EXPECTED
-#{existing}
-
-# Begin Whenever generated tasks for: My identifier
-# End Whenever generated tasks for: My identifier
-EXPECTED
-      
-      assert_equal new_cron, @command.send(:updated_crontab)
-      
-      @command.expects(:write_crontab).with(new_cron).returns(true)
-      assert @command.run
-    end
-    
-    should "delete an existing block if the identifier matches" do
+    should "clear an existing block if the identifier matches" do
       existing = <<-EXISTING_CRON
 # Something
 
@@ -162,20 +145,17 @@ This shouldn't get replaced
 EXISTING_CRON
 
       @command.expects(:read_crontab).at_least_once.returns(existing)
-      
+
       new_cron = <<-NEW_CRON
 # Something
-
-# Begin Whenever generated tasks for: My identifier
-# End Whenever generated tasks for: My identifier
 
 # Begin Whenever generated tasks for: Other identifier
 This shouldn't get replaced
 # End Whenever generated tasks for: Other identifier
 NEW_CRON
-      
+
       assert_equal new_cron, @command.send(:updated_crontab)
-      
+
       @command.expects(:write_crontab).with(new_cron).returns(true)
       assert @command.run
     end
@@ -217,6 +197,7 @@ NEW_CRON
     setup do
       @output = Whenever.cron :set => 'environment=serious', :string => \
       <<-file
+        set :job_template, nil
         set :environment, :silly
         set :path, '/my/path'
         every 2.hours do
@@ -234,6 +215,7 @@ NEW_CRON
     setup do
       @output = Whenever.cron :set => 'environment=serious&path=/serious/path', :string => \
       <<-file
+        set :job_template, nil
         set :environment, :silly
         set :path, '/silly/path'
         every 2.hours do
@@ -251,6 +233,7 @@ NEW_CRON
     setup do
       @output = Whenever.cron :set => ' environment = serious&  path =/serious/path', :string => \
       <<-file
+        set :job_template, nil
         set :environment, :silly
         set :path, '/silly/path'
         every 2.hours do
@@ -268,6 +251,7 @@ NEW_CRON
     setup do
       @output = Whenever.cron :set => ' environment=', :string => \
       <<-file
+        set :job_template, nil
         set :environment, :silly
         set :path, '/silly/path'
         every 2.hours do
@@ -366,8 +350,7 @@ My whenever job that was already here
 # End Whenever generated tasks for: My identifier
 EXISTING_CRON
 
-      # here-doc adds an extra newline we need removed
-      assert_equal existing.strip, @command.send(:prepare, existing)
+      assert_equal existing, @command.send(:prepare, existing)
     end
     
     should "trim off the top lines of the file" do
@@ -387,8 +370,21 @@ My whenever job that was already here
 # End Whenever generated tasks for: My identifier
 NEW_CRON
 
-      # here-doc adds an extra newline we need removed
-      assert_equal new_cron.strip, @command.send(:prepare, existing)
+      assert_equal new_cron, @command.send(:prepare, existing)
+    end
+    
+    should "preserve terminating newlines in files" do
+      @command = Whenever::CommandLine.new(:update => true, :identifier => 'My identifier')
+      existing = <<-EXISTING_CRON
+# Begin Whenever generated tasks for: My identifier
+My whenever job that was already here
+# End Whenever generated tasks for: My identifier
+
+# A non-Whenever task
+My non-whenever job that was already here
+EXISTING_CRON
+
+      assert_equal existing, @command.send(:prepare, existing)
     end
   end
 

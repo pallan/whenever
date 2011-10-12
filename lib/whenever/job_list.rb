@@ -1,31 +1,27 @@
 module Whenever
   class JobList
-  
     def initialize(options)
-      @jobs, @env, @set_variables = {}, {}, {}
+      @jobs, @env, @set_variables, @pre_set_variables = {}, {}, {}, {}
       
-      case options
-        when String
-          config = options
-        when Hash
-          config = if options[:string]
-            options[:string]
-          elsif options[:file]
-            File.read(options[:file])
-          end
-          pre_set(options[:set])
+      if options.is_a? String
+        options = { :string => options }
+      end
+
+      pre_set(options[:set])
+      
+      setup = File.read("#{File.expand_path(File.dirname(__FILE__))}/setup.rb")
+      schedule = if options[:string]
+        options[:string]
+      elsif options[:file]
+        File.read(options[:file])
       end
       
-      # Load all job type files.
-      Dir["#{File.expand_path(File.dirname(__FILE__))}/job_types/*.rb"].each do |file|
-        eval(File.read(file))
-      end
-      
-      eval(config)
+      instance_eval(setup + schedule, options[:file] || '<eval>')
     end
     
     def set(variable, value)
-      return if instance_variable_defined?("@#{variable}".to_sym)
+      variable = variable.to_sym
+      return if @pre_set_variables[variable]
       
       instance_variable_set("@#{variable}".to_sym, value)
       self.class.send(:attr_reader, variable.to_sym)
@@ -59,9 +55,7 @@ module Whenever
       end
     end
   
-    def generate_cron_output
-      set_path_environment_variable
-      
+    def generate_cron_output      
       [environment_variables, cron_jobs].compact.join
     end
     
@@ -79,21 +73,12 @@ module Whenever
       pairs.each do |pair|
         next unless pair.index('=')
         variable, value = *pair.split('=')
-        set(variable.strip.to_sym, value.strip) unless variable.blank? || value.blank?
+        unless variable.blank? || value.blank?
+          variable = variable.strip.to_sym
+          set(variable, value.strip)
+          @pre_set_variables[variable] = value
+        end
       end
-    end
-    
-    def set_path_environment_variable
-      return if path_should_not_be_set_automatically?
-      @env[:PATH] = read_path unless read_path.blank?
-    end
-    
-    def read_path
-      ENV['PATH'] if ENV
-    end
-    
-    def path_should_not_be_set_automatically?
-      @set_path_automatically === false || @env[:PATH] || @env["PATH"]
     end
   
     def environment_variables
@@ -101,7 +86,7 @@ module Whenever
       
       output = []
       @env.each do |key, val|
-        output << "#{key}=#{val}\n"
+        output << "#{key}=#{val.blank? ? '""' : val}\n"
       end
       output << "\n"
       
@@ -156,6 +141,5 @@ module Whenever
 
       shortcut_jobs.join + combine(regular_jobs).join
     end
-    
   end
 end
